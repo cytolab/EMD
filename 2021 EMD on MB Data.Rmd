@@ -19,6 +19,7 @@ setwd(paste(getwd(),"/data_files/", sep = ""))
 # uncomment line below to install the CytoTools package 
 # devtools::install_github("cytolab/emd")
 library(CytoTools)
+library(ggplot2)
 
 ```
 
@@ -38,26 +39,6 @@ emd_tsne_variances_outfile <- "emd_tsne_variances.csv"
 emd_tsne_medians_outfile <- "emd_tsne_medians.csv"
 emd_heatmap_outfile <- "heatmap_emd.pdf"
 
-```
-
-```{r plot t-SNE}
-for (i in 1:14){
-  tsne.data = as.data.frame(tsne_matrices[[i]])
-# setting aspect ratio for plots
-range <- apply(apply(tsne.data, 2, range), 2, diff)
-graphical.ratio.tsne <- (range[1] / range[2])
-
-# t-SNE flat dot plot and density dot plot (1 dot = 1 cell)
-tsne.plot <- data.frame(x = tsne.data[, 1], y = tsne.data[, 2])
-
-# density dot plot
-print(ggplot(tsne.plot, aes(x = x, y = y)) + 
-  coord_fixed(ratio = graphical.ratio.tsne)+ geom_point(size = 0.2) +geom_density_2d_filled(bins = 39) +scale_fill_manual(values = c("NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",viridis::viridis(28,option = "A"))) +
-labs(x = "t-SNE 1", y = "t-SNE 2", 
-  title = names(tsne_matrices)[[i]]) + theme_bw() + 
-  labs(caption = "Data from Greenplate et al., Cancer Immunol Res, 2019.") + 
-  theme(panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank())+theme(legend.position = "none") +ylim(1.2*min(tsne.data[,2]),1.2*max(tsne.data[,2]))+xlim(1.2*min(tsne.data[,1]),1.2*max(tsne.data[,1])))}
 ```
 
 ## Sort
@@ -118,22 +99,49 @@ CytoTools::plot_pairwise_comparison(
     ## if the coloration seems weird or the color key is blank
     col = color_palette)
 dev.off()
+
+```
+
+```{r plot t-SNE}
+for (i in 1:14){
+  tsne.data = as.data.frame(tsne_matrices[[i]])
+# setting aspect ratio for plots
+range <- apply(apply(tsne.data, 2, range), 2, diff)
+graphical.ratio.tsne <- (range[1] / range[2])
+
+# t-SNE flat dot plot and density dot plot (1 dot = 1 cell)
+tsne.plot <- data.frame(x = tsne.data[, 1], y = tsne.data[, 2])
+
+# density dot plot
+print(ggplot(tsne.plot, aes(x = x, y = y)) + 
+  coord_fixed(ratio = graphical.ratio.tsne)+ geom_point(size = 0.2) +geom_density_2d_filled(bins = 39) +scale_fill_manual(values = c("NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",viridis::viridis(28,option = "A"))) +
+labs(x = "t-SNE 1", y = "t-SNE 2", 
+  title = names(tsne_matrices)[[i]]) + theme_bw() + 
+  labs(caption = "Data from Greenplate et al., Cancer Immunol Res, 2019.") + 
+  theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank())+theme(legend.position = "none") +ylim(1.2*min(tsne.data[,2]),1.2*max(tsne.data[,2]))+xlim(1.2*min(tsne.data[,1]),1.2*max(tsne.data[,1])))}
 ```
 
 ## EMD Histogram and Heatmap
 
 ```{r EMD heatmap}
+CytoTools::plot_pairwise_comparison(
+    emd_pairwise_analysis$mean,
+    pcnt_similarity_scale = TRUE,
+    ## play with the number of colors in this variable (at the top of this file n = #)
+    ## if the coloration seems weird or the color key is blank
+    col = color_palette)
 
 ## you can quickly see a histogram to see if any variances seem too high
-hist(emd_pairwise_analysis$variance / emd_pairwise_analysis$mean)
+#hist(emd_pairwise_analysis$variance / emd_pairwise_analysis$mean)
 
 ## or, you can plot a heatmap and see which pairs of files have the greatest
 ## variance. this isn't super useful -- if the variance is too high on any of
 ## them, you should increase the number of rows sampled per file or increase the
 ## number of comparison runs
-CytoTools::plot_pairwise_comparison(
-    emd_pairwise_analysis$variance,
-    col = color_palette)
+#    CytoTools::plot_pairwise_comparison(
+#        emd_pairwise_analysis$variance,
+#        col = color_palette)
 
 ```
 
