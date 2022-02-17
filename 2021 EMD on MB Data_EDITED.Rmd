@@ -1,0 +1,154 @@
+---
+title: "Earth Mover's Distance "
+author: Danny McClanahan and Allie Greenplate
+editor: Sierra Barone
+output: html_document
+---
+
+
+The purpose of this document is to compute the pairwise Earth Mover's Distance and generate respective heatmaps. This code was written by the authors above in association with the Irish Lab at Vanderbilt University's Cell and Developmental Biology Department.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Data from Greenplate et al., Cancer Immunol Res, 2019. (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6318034/)
+
+# choose working directory containing FCS files (ex. direct the path to that which contains Files for EMD)
+setwd(paste(getwd(),"/data_files/", sep = ""))
+
+# uncomment line below to install the CytoTools package 
+# devtools::install_github("cytolab/emd")
+library(CytoTools)
+library(ggplot2)
+
+```
+
+## Configure
+
+This is where the heatmap color palette is chosen as well as the file output names. 
+
+```{r configure}
+
+## Color palette for heatmap and file output names
+default_color_palette <- colorRampPalette(
+    c("#24658C", "#5CBAA7", "#9ED2A4", "#E2E998", "#FBF7BF", "#FDDC86",
+      "#F8A05A", "#EF6342", "#D43E4F")
+)(n = 50)
+viridis_color_palette <- viridis::viridis(n=50)
+plasma_color_palette <- viridis::plasma(n=50)
+
+emd_tsne_means_outfile <- "emd_tsne_means.csv"
+emd_tsne_variances_outfile <- "emd_tsne_variances.csv"
+emd_tsne_medians_outfile <- "emd_tsne_medians.csv"
+emd_heatmap_outfile <- "heatmap_emd.pdf"
+
+```
+
+## Sort
+
+Here, the FCS files are sorted in the order you would like for them to be listed and to appear in the heatmap.
+
+```{r sort files}
+setwd(paste(getwd(),"/data_files/", sep = ""))
+
+
+# Sort the files in the order in which you would like them to appear in the heatmap. The default order is alphabetical. 
+
+sorted_cytof_data <- CytoTools::read_files_sorted(
+    path = ".",
+    extensions = c("fcs"),
+    
+    # this line choses a character designated to split file names into different segments
+    split_by = c("_", " "),
+    
+    
+    # this line designates the order 
+    orders = list(c(), c("pre", "3wk", "12wk", "6m")))
+```
+
+## EMD Analysis
+
+This is where the EMD analysis is performed on the t-SNE axes. 
+
+```{r EMD analysis on t-SNE, message=FALSE, warning=FALSE}
+setwd(paste(getwd(), sep = ""))
+
+
+### EMD analysis on t-SNE axes
+tsne_matrices <- lapply(sorted_cytof_data, function (fcs_df) {
+    as.matrix(fcs_df[,c("tSNE1", "tSNE2")])
+})
+
+emd_pairwise_analysis <- CytoTools::pairwise_emd(
+    tsne_matrices, downsample_rows = 200L, comparison_runs = 10L,
+    summary_funs = list(
+        mean = mean,
+        variance = var,
+        median = median),
+    verbose_timing = FALSE)
+
+## save the EMD summary stats matrices to file
+## note: read these back in with read.csv(filename, check.names = FALSE) to keep dimnames
+write.csv(emd_pairwise_analysis$mean, emd_tsne_means_outfile)
+write.csv(emd_pairwise_analysis$variance, emd_tsne_variances_outfile)
+write.csv(emd_pairwise_analysis$median, emd_tsne_medians_outfile)
+
+# A heatmap of EMD stats will be exported to a PDF file within your current working directory
+pdf(emd_heatmap_outfile)
+CytoTools::plot_pairwise_comparison(
+    emd_pairwise_analysis$mean,
+    pcnt_similarity_scale = TRUE,
+    ## play with the number of colors in this variable (at the top of this file n = #)
+    ## if the coloration seems weird or the color key is blank
+    col = color_palette)
+dev.off()
+
+```
+
+```{r plot t-SNE}
+for (i in 1:14){
+  tsne.data = as.data.frame(tsne_matrices[[i]])
+# setting aspect ratio for plots
+range <- apply(apply(tsne.data, 2, range), 2, diff)
+graphical.ratio.tsne <- (range[1] / range[2])
+
+# t-SNE flat dot plot and density dot plot (1 dot = 1 cell)
+tsne.plot <- data.frame(x = tsne.data[, 1], y = tsne.data[, 2])
+
+# density dot plot
+print(ggplot(tsne.plot, aes(x = x, y = y)) + 
+  coord_fixed(ratio = graphical.ratio.tsne)+ geom_point(size = 0.2) +geom_density_2d_filled(bins = 39) +scale_fill_manual(values = c("NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",viridis::viridis(28,option = "A"))) +
+labs(x = "t-SNE 1", y = "t-SNE 2", 
+  title = names(tsne_matrices)[[i]]) + theme_bw() + 
+  labs(caption = "Data from Greenplate et al., Cancer Immunol Res, 2019.") + 
+  theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank())+theme(legend.position = "none") +ylim(1.2*min(tsne.data[,2]),1.2*max(tsne.data[,2]))+xlim(1.2*min(tsne.data[,1]),1.2*max(tsne.data[,1])))}
+```
+
+## EMD Histogram and Heatmap
+
+```{r EMD heatmap}
+CytoTools::plot_pairwise_comparison(
+    emd_pairwise_analysis$mean,
+    pcnt_similarity_scale = TRUE,
+    ## play with the number of colors in this variable (at the top of this file n = #)
+    ## if the coloration seems weird or the color key is blank
+    col = plasma_color_palette)
+
+## you can quickly see a histogram to see if any variances seem too high
+#hist(emd_pairwise_analysis$variance / emd_pairwise_analysis$mean)
+
+## or, you can plot a heatmap and see which pairs of files have the greatest
+## variance. this isn't super useful -- if the variance is too high on any of
+## them, you should increase the number of rows sampled per file or increase the
+## number of comparison runs
+#    CytoTools::plot_pairwise_comparison(
+#        emd_pairwise_analysis$variance,
+#        col = color_palette)
+
+```
+
+
+
+
+
